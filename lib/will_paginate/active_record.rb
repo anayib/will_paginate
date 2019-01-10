@@ -5,10 +5,10 @@ require 'active_record'
 
 module WillPaginate
   # = Paginating finders for ActiveRecord models
-  # 
+  #
   # WillPaginate adds +paginate+, +per_page+ and other methods to
   # ActiveRecord::Base class methods and associations.
-  # 
+  #
   # In short, paginating finders are equivalent to ActiveRecord finders; the
   # only difference is that we start with "paginate" instead of "find" and
   # that <tt>:page</tt> is required parameter:
@@ -136,7 +136,7 @@ module WillPaginate
         other.total_entries = nil if defined? @total_entries_queried
         other
       end
-      
+
       def select_for_count(rel)
         if rel.select_values.present?
           select = rel.select_values.join(", ")
@@ -152,17 +152,18 @@ module WillPaginate
         options.delete(:page)
         per_page = options.delete(:per_page) || self.per_page
         total    = options.delete(:total_entries)
+        custom_offset = options.delete(:offset)
 
         if options.any?
           raise ArgumentError, "unsupported parameters: %p" % options.keys
         end
 
-        rel = limit(per_page.to_i).page(pagenum)
+        rel = limit(per_page.to_i).page(pagenum, custom_offset)
         rel.total_entries = total.to_i          unless total.blank?
         rel
       end
 
-      def page(num)
+      def page(num, custom_offset = 0)
         rel = if ::ActiveRecord::Relation === self
           self
         elsif !defined?(::ActiveRecord::Scoping) or ::ActiveRecord::Scoping::ClassMethods.method_defined? :with_scope
@@ -176,7 +177,7 @@ module WillPaginate
         rel = rel.extending(RelationMethods)
         pagenum = ::WillPaginate::PageNumber(num.nil? ? 1 : num)
         per_page = rel.limit_value || self.per_page
-        rel = rel.offset(pagenum.to_offset(per_page).to_i)
+        rel = rel.offset(pagenum.to_offset(per_page).to_i + custom_offset)
         rel = rel.limit(per_page) unless rel.limit_value
         rel.current_page = pagenum
         rel
@@ -189,7 +190,7 @@ module WillPaginate
       # +per_page+.
       #
       # Example:
-      # 
+      #
       #   @developers = Developer.paginate_by_sql ['select * from developers where salary > ?', 80000],
       #                          :page => params[:page], :per_page => 3
       #
@@ -197,7 +198,7 @@ module WillPaginate
       # supply <tt>:total_entries</tt>. If you experience problems with this
       # generated SQL, you might want to perform the count manually in your
       # application.
-      # 
+      #
       def paginate_by_sql(sql, options)
         pagenum  = options.fetch(:page) { raise ArgumentError, ":page parameter required" } || 1
         per_page = options[:per_page] || self.per_page
